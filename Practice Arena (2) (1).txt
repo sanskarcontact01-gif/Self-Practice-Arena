@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Practice Arena</title>
+<style>
+:root{--bg:#faf8f4;--fg:#1f1d1a;--mut:#6b665e;--card:#fff;--bd:#ddd6c9;--ac:#c2410c;--acf:#fff;--ok:#15803d;--bad:#b91c1c;--mk:#7c3aed;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17161a;--fg:#efece6;--mut:#a39e94;--card:#222025;--bd:#3a373e;--ac:#fb923c;--acf:#1a1208;--ok:#4ade80;--bad:#f87171;--mk:#a78bfa}}
+:root[data-theme="dark"]{--bg:#17161a;--fg:#efece6;--mut:#a39e94;--card:#222025;--bd:#3a373e;--ac:#fb923c;--acf:#1a1208;--ok:#4ade80;--bad:#f87171;--mk:#a78bfa}
+html{color-scheme:light dark;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,sans-serif}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
+#app{max-width:680px;margin:0 auto;padding:12px 14px 40px}
+h1{font-size:22px;margin:8px 0}h2{margin:0 0 6px}
+.m{color:var(--mut);font-size:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:10px 0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+button,input,select,textarea{font:inherit;color:var(--fg)}
+.btn{background:var(--ac);color:var(--acf);border:0;border-radius:10px;padding:10px 14px;font-weight:600;display:inline-block}
+.g{background:transparent;border:1px solid var(--bd);border-radius:10px;padding:9px 12px}
+button:disabled{opacity:.4}
+textarea,select,input:not([type=file]){background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:8px;box-sizing:border-box}
+textarea{width:100%}.row input:not([type=file]){flex:1;min-width:0}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;justify-content:space-between;align-items:center;background:var(--bg);padding:8px 0}
+#tm{font-size:20px;font-variant-numeric:tabular-nums}.low{color:var(--bad)}
+.pal{display:flex;flex-wrap:wrap;gap:6px}
+.p{width:38px;height:36px;border-radius:8px;border:1px solid var(--bd);background:var(--card)}
+.p.a{background:var(--ok);color:var(--acf);border-color:var(--ok)}.p.r{border:2px solid var(--mk)}.p.c{outline:2px solid var(--ac)}
+.qt{white-space:pre-wrap;margin:8px 0;font-size:17px}
+.op{display:block;width:100%;text-align:left;margin:6px 0;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--bg)}
+.op.s{border:2px solid var(--ac)}
+img{max-width:100%;border-radius:8px}
+.r.ok{border-left:4px solid var(--ok)}.r.bad{border-left:4px solid var(--bad)}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:20;padding:20px}
+.box{background:var(--card);border-radius:14px;padding:18px;max-width:380px;width:100%}
+</style></head><body>
+<div id="app"></div><div id="md"></div>
+<script>
+const $=s=>document.querySelector(s),E=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'),L='ABCD';
+let S={ph:'up',qs:[],ans:{},mark:{},cur:0,end:0,dur:60,pos:4,neg:1,ksec:''},IM={q:[],k:[]},KEYS={},tick;
+const save=()=>{try{localStorage.setItem('pa2',JSON.stringify(S))}catch(e){}};
+try{const d=JSON.parse(localStorage.getItem('pa2'));if(d&&d.qs&&d.qs.length)S=d}catch(e){}
+const PQ='This is a photo of a page of JEE-level exam questions. Return ONLY a JSON array (no markdown), one object per complete question visible: {"n": the printed question number as an integer, "q": the full question text, "t": "mcq" or "num", "o": [text of option A, B, C, D] (empty array for num), "fig": true if the question or its options depend on a diagram, graph or figure that text cannot capture}. Write maths in plain Unicode (x², √, π, α, subscripts like H₂O), not LaTeX. Skip questions that are cut off. Do not solve anything and do not guess answers.';
+const PK='This is a photo of an answer key page. Return ONLY a JSON array (no markdown) of {"s": the section label such as "A", "B", "C" or "D" (use "A" if there are no sections), "n": the printed question number as an integer, "a": the answer}. Use capital letters for options ((a) becomes "A", (a, b) becomes "AB") and the number exactly as written for numerical answers. Include only entries you can read clearly.';
+const mod=h=>{$('#md').innerHTML=h?'<div class=ov><div class=box>'+h+'</div></div>':''};
+const go=p=>{S.ph=p;save();render();scrollTo(0,0)};
+function render(){clearInterval(tick);({up:rUp,review:rRev,quiz:rQuiz,done:rDone})[S.ph]($('#app'))}
+async function shrink(f){
+ const draw=(src,w,h)=>new Promise(r=>{try{const k=Math.min(1,1600/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(src,0,0,c.width,c.height);c.toBlob(b=>r(b?{b,u:c.toDataURL('image/jpeg',.7)}:null),'image/jpeg',.85)}catch(e){r(null)}});
+ try{const bm=await createImageBitmap(f);const r=await draw(bm,bm.width,bm.height);if(r)return r}catch(e){}
+ return new Promise(res=>{const i=new Image();i.onerror=()=>res(null);i.onload=async()=>res(await draw(i,i.naturalWidth,i.naturalHeight));i.src=URL.createObjectURL(f)})}
+async function add(fs,w){fs=[...fs];let bad=0,bt=[];for(const f of fs){const r=await shrink(f);if(r)IM[w].push(r);else{bad++;bt.push(f.type||'unknown type')}}if(bad)mod('<p>Could not read '+bad+' photo(s) ('+E(bt.join(', '))+'). If they are HEIC, switch the camera to JPG, or send a screenshot of the page instead.</p><button class=btn onclick="mod(\'\')">OK</button>');render()}
+function ph(w,t,n){return `<div class=card><b>${t}</b><div class=m>${n}</div><div class=row><span class=btn style="position:relative;overflow:hidden">📷 Add photos<input type=file accept="image/*" multiple style="position:absolute;inset:0;width:100%;height:100%;opacity:0" onchange="add(this.files,'${w}')"></span>${IM[w].length?'<span class=m>'+IM[w].length+' added</span>':''}</div><div class=row>${IM[w].map((x,i)=>`<img src="${x.u}" alt="" style="height:60px" onclick="IM['${w}'].splice(${i},1);render()">`).join('')}</div>${IM[w].length?'<div class=m>Tap a photo to remove it.</div>':''}</div>`}
+function rUp(a){a.innerHTML=`<h1>Practice Arena</h1><p class=m>Add photos of your questions and, if you have it, the answer key. I read them and build a timed quiz.</p>${ph('q','1 · Question photos','Clear, straight photos work best. Several photos are fine.')}${ph('k','2 · Answer key photos (optional)','With these, the correct answers are filled in for you.')}<button class=btn onclick="build()">Build my quiz</button><p id=st class=m></p>`}
+function parse(t,a,b){t=t.replace(/```json|```/g,'');return JSON.parse(t.slice(t.indexOf(a),t.lastIndexOf(b)+1))}
+async function build(){
+ const st=$('#st');if(!IM.q.length){st.textContent='Add at least one question photo first.';return}
+ let sm=null,lim=null;try{sm=await claude.use('sample')}catch(e){}
+ if(!sm){st.textContent='Photo reading is not available in this view. Open the page from its claude.ai link in your browser or the Claude app.';return}
+ try{lim=await sm.limits()}catch(e){}
+ if(!lim||!lim.images){st.textContent='Photo reading is not enabled for your account.';return}
+ const qs=[],seen={},fails=[];KEYS={};
+ for(let n=0;n<IM.q.length;n++){
+  st.textContent='Reading question photo '+(n+1)+' of '+IM.q.length+'…';
+  try{const r=await sm(PQ,{images:[IM.q[n].b],cache:false});
+   parse(r.text,'[',']').forEach(x=>{const num=x.t==='num',k=+x.n||qs.length+1;if(seen[k])return;seen[k]=1;qs.push({n:k,q:x.q||'',t:num?'num':'mcq',o:num?[]:[0,1,2,3].map(j=>(x.o||[])[j]||''),a:'',fig:!!x.fig,im:n})})
+  }catch(e){fails.push(n+1)}}
+ for(let n=0;n<IM.k.length;n++){
+  st.textContent='Reading answer key photo '+(n+1)+' of '+IM.k.length+'…';
+  try{const r=await sm(PK,{images:[IM.k[n].b],cache:false});
+   parse(r.text,'[',']').forEach(x=>{const s=String(x.s||'A').toUpperCase(),a=String(x.a==null?'':x.a).toUpperCase().replace(/[^A-D0-9.\-]/g,'');if(x.n&&a){(KEYS[s]=KEYS[s]||{})[+x.n]=a}})
+  }catch(e){fails.push('key '+(n+1))}}
+ if(!qs.length){st.textContent='No questions found. Try clearer photos.';return}
+ S.qs=qs;S.ans={};S.mark={};S.cur=0;let best='',bm=-1;
+ for(const s in KEYS){const m=qs.filter(q=>KEYS[s][q.n]).length;if(m>bm){bm=m;best=s}}
+ applyKey(best);S.fails=fails;go('review')}
+function applyKey(s){S.ksec=s;const m=KEYS[s]||{};S.qs.forEach(q=>{q.a=m[q.n]||''})}
+function rRev(a){
+ const secs=Object.keys(KEYS),withKey=S.qs.filter(q=>q.a).length;
+ a.innerHTML=`<h1>${S.qs.length} questions found</h1><p class=m>${S.fails&&S.fails.length?'Could not read: '+S.fails.join(', ')+'. ':''}Fix anything that was read wrongly. ${withKey} question(s) have a key; the others will not be scored.</p>`
+ +(secs.length>1?`<div class=card><b>Answer key section</b><div class=row><select onchange="applyKey(this.value);render()">${secs.map(s=>`<option${s==S.ksec?' selected':''}>${E(s)}</option>`).join('')}</select></div><div class=m>The key photo had several sections with repeating numbers. Pick the one that matches your questions.</div></div>`:'')
+ +S.qs.map((q,i)=>`<div class=card><div class=row><b>Q${q.n}</b><select onchange="chT(${i},this.value)"><option value=mcq${q.t=='mcq'?' selected':''}>MCQ</option><option value=num${q.t=='num'?' selected':''}>Numerical</option></select><button class=g onclick="S.qs.splice(${i},1);render()">🗑</button></div><textarea rows=4 oninput="S.qs[${i}].q=this.value">${E(q.q)}</textarea>${q.t=='mcq'?q.o.map((o,k)=>`<div class=row><span>${L[k]}</span><input value="${E(o)}" oninput="S.qs[${i}].o[${k}]=this.value"></div>`).join(''):''}<div class=row><span>Key</span><input value="${E(q.a)}" placeholder="${q.t=='mcq'?'A (or AB if several)':'number'}" oninput="S.qs[${i}].a=this.value.trim().toUpperCase()"></div>${q.fig&&IM.q[q.im]?`<details open><summary>Figure / source photo</summary><img src="${IM.q[q.im].u}" alt=""></details>`:''}</div>`).join('')
+ +`<div class=card><b>Time</b><div class=row>${[60,90].map(m=>`<button class="${S.dur==m?'btn':'g'}" onclick="S.dur=${m};render()">${m} min</button>`).join('')}<input type=number min=1 placeholder="Custom (min)" value="${[60,90].includes(S.dur)?'':S.dur}" oninput="S.dur=+this.value||60"></div><div class=row><span>Correct +</span><input type=number value=${S.pos} style="max-width:70px" oninput="S.pos=+this.value||0"><span>Wrong −</span><input type=number value=${S.neg} style="max-width:70px" oninput="S.neg=+this.value||0"></div></div><div class=row><button class=btn onclick="start()">Start quiz ▶</button><button class=g onclick="S.qs=[];go('up')">← New photos</button></div>`}
+function chT(i,v){const q=S.qs[i];q.t=v;q.a='';if(v=='mcq'&&!q.o.length)q.o=['','','',''];render()}
+function start(){S.end=Date.now()+S.dur*60000;S.cur=0;S.ans={};S.mark={};go('quiz')}
+function rQuiz(a){
+ const i=S.cur,q=S.qs[i],v=S.ans[i]||'',multi=q.a.length>1&&/^[A-D]+$/.test(q.a),src=IM.q[q.im];
+ a.innerHTML=`<div class=bar><b id=tm></b><button class=btn onclick="ask()">Submit</button></div><div class=pal>${S.qs.map((x,k)=>`<button class="p${S.ans[k]?' a':''}${S.mark[k]?' r':''}${k==i?' c':''}" onclick="nav(${k})">${x.n}</button>`).join('')}</div><div class=card><b>Q${q.n}</b> <span class=m>${S.mark[i]?'🔖 marked for review':''}${multi?' · one or more correct':''}</span><div class=qt>${E(q.q)}</div>${src?`<details${q.fig?' open':''}><summary class=m>${q.fig?'Figure / source photo':'Show source photo'}</summary><img src="${src.u}" alt=""></details>`:''}${q.t=='mcq'?q.o.map((o,k)=>`<button class="op${v.includes(L[k])?' s':''}" onclick="pick('${L[k]}')"><b>(${L[k]})</b> ${E(o)}</button>`).join(''):`<input inputmode=decimal placeholder="Your answer (number)" style="width:100%" value="${E(v)}" oninput="S.ans[${i}]=this.value.trim();save()">`}</div><div class=row><button class=g onclick="nav(${i-1})"${i?'':' disabled'}>← Previous</button><button class=g onclick="S.ans[${i}]='';save();render()">Clear</button><button class=g onclick="S.mark[${i}]=!S.mark[${i}];save();render()">🔖</button><button class=btn onclick="nav(${i+1})"${i<S.qs.length-1?'':' disabled'}>Next →</button></div>`;
+ clock();tick=setInterval(clock,1000)}
+function nav(k){if(k<0||k>=S.qs.length)return;S.cur=k;save();render();scrollTo(0,0)}
+function pick(c){const q=S.qs[S.cur],v=S.ans[S.cur]||'';if(q.a.length>1&&/^[A-D]+$/.test(q.a)){S.ans[S.cur]=[...L].filter(x=>(v.includes(x))!=(x==c)).join('')}else S.ans[S.cur]=v==c?'':c;save();const y=scrollY;render();scrollTo(0,y)}
+function clock(){const t=$('#tm');if(!t)return;const l=Math.max(0,S.end-Date.now()),s=Math.ceil(l/1000),p=x=>String(x).padStart(2,'0');t.textContent='⏱ '+p(Math.floor(s/3600))+':'+p(Math.floor(s%3600/60))+':'+p(s%60);t.classList.toggle('low',l<300000);
+ if(l<=0&&!$('#md').innerHTML){clearInterval(tick);mod('<h2>Time is up ⏰</h2><p>Extend the time or submit?</p><div class=row>'+[10,15,30].map(m=>'<button class=btn onclick="more('+m+')">+'+m+' min</button>').join('')+'</div><button class=g onclick="fin()">Submit</button>')}}
+function more(m){S.end=Date.now()+m*60000;mod('');save();render()}
+function ask(){const u=S.qs.filter((_,k)=>!S.ans[k]).length;mod('<h2>Submit the test?</h2><p>'+u+' of '+S.qs.length+' questions are unanswered.</p><div class=row><button class=btn onclick="fin()">Yes, submit</button><button class=g onclick="mod(\'\')">Keep going</button></div>')}
+function fin(){mod('');go('done')}
+function rDone(a){
+ let sc=0,c=0,w=0,u=0,nk=0;
+ const rows=S.qs.map((q,i)=>{const v=S.ans[i]||'',k=q.a;let st;
+  if(!v){u++;st='skip'}else if(!k){nk++;st='nokey'}else{const ok=q.t=='mcq'?v==k:Math.abs(parseFloat(v)-parseFloat(k))<.011;if(ok){c++;sc+=S.pos;st='ok'}else{w++;sc-=S.neg;st='bad'}}
+  return `<div class="card r ${st}"><b>Q${q.n}</b> ${{ok:'✅ Correct',bad:'❌ Wrong',skip:'⏭ Skipped',nokey:'❔ No key'}[st]}<div class=m>Your answer: ${E(v||'—')} · Correct: ${E(k||'—')}</div><div class=qt>${E(q.q)}</div></div>`}).join('');
+ a.innerHTML=`<h1>Score: ${sc}</h1><p class=m>Correct ${c} · Wrong ${w} · Skipped ${u}${nk?' · No key '+nk:''}</p><div class=row><button class=btn onclick="start()">Retake this quiz</button><button class=g onclick="S.qs=[];S.ans={};IM={q:[],k:[]};go('up')">New quiz</button></div>${rows}`}
+render();
+</script></body></html>
